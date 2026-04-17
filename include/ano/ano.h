@@ -15,7 +15,7 @@
 namespace ano {
 
 struct Graphics {
-    enum class API { OpenGL };
+    enum class API { OpenGLES3 };
 
     struct IContext {
         ANativeWindow*  nwindow;
@@ -23,7 +23,13 @@ struct Graphics {
         int             height;
         
         IContext(ANativeWindow* nwindow, int w, int h)
-            : nwindow(nwindow), width(w), height(h) {}
+        : nwindow(nwindow), width(w), height(h) {
+            ANativeWindow_acquire(nwindow);
+        }
+
+        ~IContext() {
+            ANativeWindow_release(nwindow);
+        }
 
         virtual void setCurrent() {}
         virtual void swapBuffers() {}
@@ -106,7 +112,7 @@ struct Window {
     FramebufferSizeCallback             frame_buffer_size_callback;
 };
 
-inline std::unique_ptr<Window> createWindow(const char* title, int width, int height, Graphics::API graphics_api = Graphics::API::OpenGL) {
+inline std::unique_ptr<Window> createWindow(const char* title, int width, int height, Graphics::API graphics_api = Graphics::API::OpenGLES3) {
     auto w = NativeWindowManager::create(title, width, height);
     if (!w.has_value()) {
         detail::errorQuit<std::runtime_error>("创建窗口失败: {}", (int)w.error());
@@ -114,7 +120,7 @@ inline std::unique_ptr<Window> createWindow(const char* title, int width, int he
 
     auto window = [=] -> std::unique_ptr<Graphics::IContext> {
         switch (graphics_api) {
-        case Graphics::API::OpenGL:
+        case Graphics::API::OpenGLES3:
             return std::make_unique<Graphics::OpenGLContext>(w.value(), width, height);
         default:
             detail::errorQuit<std::invalid_argument>("未支持的图形API: {}", (int)graphics_api);
@@ -135,6 +141,9 @@ inline void swapBuffers(const std::unique_ptr<Window>& window) {
 inline bool windowShouldClose(const std::unique_ptr<Window>& window) {
     return window->should_close;
 }
+inline void setWindowShouldClose(const std::unique_ptr<Window>& window, bool should_close) {
+    window->should_close = should_close;
+}
 
 inline void pollEvents() {
     
@@ -153,13 +162,12 @@ inline void setFramebufferSizeCallback(const std::unique_ptr<Window>& window, co
 }
 
 inline void destroyWindow(std::unique_ptr<Window> window) {
-    window->should_close = true;
+    auto nwindow = window->graphics_context->nwindow;
+    window.reset(nullptr);
     
-    if (!ano::NativeWindowManager::destroy(window->graphics_context->nwindow)) {
+    if (!ano::NativeWindowManager::destroy(nwindow)) {
         detail::errorQuit<std::runtime_error>("销毁NativeWindow失败");
     }
-
-    window.reset(nullptr);
 }
 
 }

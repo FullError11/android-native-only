@@ -8,7 +8,6 @@
 namespace ano::detail {
 
 inline unsigned int getAndroidVersion() {
-
     static unsigned int cache = []{
         char release_version[PROP_VALUE_MAX];
         __system_property_get("ro.build.version.release", release_version);
